@@ -1,0 +1,97 @@
+import streamlit as st
+from groq import  Groq
+
+st.set_page_config(page_title="Mi chat de IA", layout="centered", page_icon="😊")
+
+st.title("Mi primer aplicacion con streamlit.")
+
+nombre = st.text_input("¿Cual es tu nombre?")
+
+if st.button("Saludar"):
+    st.write(f"¡Hola {nombre}!")
+
+MODELOS = ['llama-3.1-8b-instant','llama-3.3-70b-versatile','deepsek-r1-distill-llama-70b']
+
+#creamos una lista con los modelos de IA de groq que vamos a usar
+
+def configurar_pagina():   
+    st.title("Mi chat de IA")
+    st.sidebar.title("Configuracion del modelo")
+    elegiModelo = st.sidebar.selectbox('Elegi el modelo de IA', options=MODELOS, index=0)
+    return elegiModelo
+
+#Funcion para crear un Usuario
+def crear_usuario_groq():
+    clave_secreta = st.secrets["claveApi"]
+    return Groq(api_key=clave_secreta)
+
+#Funcion para configurar modelo y mensaje solo de entrada
+
+def configurar_modelo(cliente, modelo, mensajeDeEntrada):
+    return cliente.chat.completions.create(
+        model = modelo,
+        messages = [{"role" : "user", "content": mensajeDeEntrada}],
+        stream = True
+    )    
+    
+#creamos una funcion que nos permita hacer uso del historial. Es decir,
+#recordar los mensajes anteriores.
+
+def inicializar_Estado():
+    if "mensajes" not in st.session_state:
+        st.session_state.mensajes = []
+
+
+    
+#Clase 8
+#Actualizar Historial
+
+def actualizar_historial(rol, contenido, avatar):
+    st.session_state.mensajes.append({"role": rol, "content": contenido, "avatar": avatar})
+
+#Mostras historial
+
+def mostrar_historial():
+    for mensaje in st.session_state.mensajes:
+        with st.chat_message(mensaje["role"], avatar = mensaje["avatar"]):
+            st.markdown(mensaje["content"])
+            
+#Area del historial
+
+def area_historial():
+    contenedorDelChat = st.container(height=400, border=True)
+    with contenedorDelChat:
+        mostrar_historial()
+        
+#Clase 9
+#Funcion: generar respuesta
+
+def generar_respuesta(chat_completo):
+    #Crear una variable string vacia
+    respuesta_completa = ""
+    for frase in chat_completo:
+        if frase.choices[0].delta.content:
+            respuesta_completa += frase.choices[0].delta.content
+            yield frase.choices[0].delta.content
+    return respuesta_completa
+        
+        
+def main():
+    elegirModelo = configurar_pagina()
+    clienteUsuario = crear_usuario_groq()
+    inicializar_Estado()
+    area_historial()
+    mensaje = st.chat_input("Escribi tu mensaje")
+    if mensaje:
+        actualizar_historial("user", mensaje, "😊")
+        chat_completo = configurar_modelo(clienteUsuario, elegirModelo, mensaje)
+        if chat_completo:
+            with st.chat_message("assistant"):
+                chat_completo = st.write_stream(generar_respuesta(chat_completo))
+                actualizar_historial("assistant", chat_completo, "🤖")
+    st.rerun()
+    
+
+if __name__ == "__main__":
+    main()
+    
